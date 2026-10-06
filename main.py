@@ -18,7 +18,6 @@ def run_game():
 
     TILE = 40
 
-    # ---------- Overworld ----------
     OVER_W, OVER_H = 120, 120
     GRASS = (34, 139, 34)
     GRASS2 = (40, 150, 40)
@@ -33,22 +32,21 @@ def run_game():
             for x in range(OVER_W):
                 r = random.random()
                 if r < 0.07:
-                    grid[y][x] = 1  # дерево
+                    grid[y][x] = 1
                 elif r < 0.09:
-                    grid[y][x] = 2  # вода
+                    grid[y][x] = 2
         return grid
 
     over_grid = gen_overworld()
 
     spawn_tx, spawn_ty = OVER_W // 2, OVER_H // 2
-    # расчистим зону спавна от деревьев/воды
     for y in range(spawn_ty - 3, spawn_ty + 4):
         for x in range(spawn_tx - 3, spawn_tx + 4):
             if 0 <= x < OVER_W and 0 <= y < OVER_H:
                 over_grid[y][x] = 0
 
     entrance_tx, entrance_ty = spawn_tx + 10, spawn_ty + 6
-    over_grid[entrance_ty][entrance_tx] = 3  # вход в пещеру
+    over_grid[entrance_ty][entrance_tx] = 3
     for y in range(entrance_ty - 1, entrance_ty + 2):
         for x in range(entrance_tx - 1, entrance_tx + 2):
             if 0 <= x < OVER_W and 0 <= y < OVER_H and over_grid[y][x] != 3:
@@ -56,7 +54,6 @@ def run_game():
 
     furnace_tx, furnace_ty = spawn_tx + 2, spawn_ty - 2
 
-    # ---------- Cave ----------
     CAVE_W, CAVE_H = 50, 50
     FLOOR = (70, 70, 75)
     WALL = (35, 35, 38)
@@ -69,15 +66,15 @@ def run_game():
         for y in range(CAVE_H):
             for x in range(CAVE_W):
                 if x == 0 or y == 0 or x == CAVE_W - 1 or y == CAVE_H - 1:
-                    grid[y][x] = 1  # стена
+                    grid[y][x] = 1
                 else:
                     r = random.random()
                     if r < 0.10:
-                        grid[y][x] = 2  # камень
+                        grid[y][x] = 2
                     elif r < 0.14:
-                        grid[y][x] = 4  # уголь
+                        grid[y][x] = 4
                     elif r < 0.17:
-                        grid[y][x] = 3  # железо
+                        grid[y][x] = 3
         return grid
 
     cave_grid = gen_cave()
@@ -87,9 +84,8 @@ def run_game():
             if 0 <= x < CAVE_W and 0 <= y < CAVE_H:
                 cave_grid[y][x] = 0
     cave_exit_tx, cave_exit_ty = cave_spawn_tx, cave_spawn_ty
-    cave_grid[cave_exit_ty][cave_exit_tx] = 5  # выход
+    cave_grid[cave_exit_ty][cave_exit_tx] = 5
 
-    # ---------- Персонаж ----------
     SKIN = (235, 190, 150)
     SHIRT = (60, 90, 200)
     PANTS = (50, 50, 60)
@@ -98,6 +94,7 @@ def run_game():
     player = pygame.Rect(spawn_tx * TILE, spawn_ty * TILE, 24, 34)
     speed = 4
     facing = "down"
+    visual_turn = "center"
 
     RABBIT_COLOR = (170, 130, 90)
     animals = []
@@ -200,8 +197,8 @@ def run_game():
 
     def blocking_set():
         if state["map"] == "over":
-            return (1, 2)  # дерево, вода
-        return (1,)  # стена
+            return (1, 2)
+        return (1,)
 
     def tile_blocked(tx, ty):
         w, h = current_w_h()
@@ -381,13 +378,29 @@ def run_game():
     def draw_player(cam_x, cam_y):
         px = player.x - cam_x
         py = player.y - cam_y
+
+        head_shift = 0
+        if visual_turn == "left":
+            head_shift = -4
+        elif visual_turn == "right":
+            head_shift = 4
+
         pygame.draw.rect(screen, PANTS, (px + 4, py + 20, 6, 14))
         pygame.draw.rect(screen, PANTS, (px + 14, py + 20, 6, 14))
         body_color = ARMOR_COLOR if tools["armor"] else SHIRT
         pygame.draw.rect(screen, body_color, (px + 2, py + 8, 20, 16), border_radius=4)
         pygame.draw.rect(screen, SKIN, (px - 2, py + 10, 5, 12))
         pygame.draw.rect(screen, SKIN, (px + 21, py + 10, 5, 12))
-        pygame.draw.circle(screen, SKIN, (px + 12, py + 6), 8)
+        pygame.draw.circle(screen, SKIN, (px + 12 + head_shift, py + 6), 8)
+
+        if visual_turn == "left":
+            nose_x = px + 12 + head_shift - 7
+        elif visual_turn == "right":
+            nose_x = px + 12 + head_shift + 7
+        else:
+            nose_x = px + 12 + head_shift
+        pygame.draw.circle(screen, (0, 0, 0), (nose_x, py + 6), 4)
+        pygame.draw.circle(screen, (255, 255, 255), (nose_x, py + 6), 2)
 
     def draw_animal(a, cam_x, cam_y):
         r = a["rect"]
@@ -586,13 +599,21 @@ def run_game():
             y += 20
 
         y += 10
+
+        nonlocal panel_scroll_top, panel_max_scroll
+        panel_scroll_top = y
+        visible_bottom = HEIGHT - 10
+        clip_rect = pygame.Rect(panel.left, panel_scroll_top, panel_w, visible_bottom - panel_scroll_top)
+        screen.set_clip(clip_rect)
+
         buttons = {}
+        draw_y = y - scroll_offset
 
         def craft_btn(key, label, enabled):
-            nonlocal y
-            r = button(label, panel.centerx, y + 20, w=260, h=38, enabled=enabled)
+            nonlocal draw_y
+            r = button(label, panel.centerx, draw_y + 20, w=260, h=38, enabled=enabled)
             buttons[key] = (r, enabled)
-            y += 46
+            draw_y += 46
 
         craft_btn("wood_axe", t["craft_wood_axe"], not tools["wood_axe"] and inventory["wood"] >= 3)
         craft_btn("wood_sword", t["craft_wood_sword"], not tools["wood_sword"] and inventory["wood"] >= 5)
@@ -603,6 +624,16 @@ def run_game():
         craft_btn("torch", t["craft_torch"], inventory["wood"] >= 1 and inventory["coal"] >= 1)
         craft_btn("armor", t["craft_armor"], not tools["armor"] and inventory["iron"] >= 30)
         craft_btn("eat", t["eat_meat"], inventory["meat"] > 0)
+
+        screen.set_clip(None)
+
+        content_height = draw_y - (y - scroll_offset)
+        visible_height = visible_bottom - panel_scroll_top
+        panel_max_scroll = max(0, content_height - visible_height)
+
+        if panel_max_scroll > 0:
+            hint_surf = font_small.render("колёсико / scroll", True, (150, 150, 150))
+            screen.blit(hint_surf, (panel.left + 16, HEIGHT - 20))
 
         return buttons
 
@@ -643,6 +674,10 @@ def run_game():
     play_rect = settings_rect = exit_rect = None
     lang_rect = back_rect = None
     inv_buttons = {}
+    scroll_offset = 0
+    panel_scroll_top = 0
+    panel_max_scroll = 0
+    panel_left = WIDTH - 300
 
     while True:
         dt = clock.tick(60) / 1000.0
@@ -667,6 +702,13 @@ def run_game():
                 if event.key == pygame.K_t and state["screen"] == "playing" and not state["inventory_open"]:
                     place_torch()
 
+            if event.type == pygame.MOUSEWHEEL:
+                if state["screen"] == "playing" and state["inventory_open"]:
+                    mx, my = pygame.mouse.get_pos()
+                    if mx >= panel_left:
+                        scroll_offset -= event.y * 30
+                        scroll_offset = max(0, min(panel_max_scroll, scroll_offset))
+
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 pos = event.pos
                 if state["screen"] == "menu":
@@ -684,7 +726,7 @@ def run_game():
                         state["screen"] = "menu"
                 elif state["screen"] == "playing" and state["inventory_open"]:
                     for key, (rect, enabled) in inv_buttons.items():
-                        if enabled and rect.collidepoint(pos):
+                        if enabled and rect.collidepoint(pos) and panel_scroll_top <= pos[1] <= HEIGHT - 10:
                             apply_craft(key)
                             break
 
@@ -710,12 +752,15 @@ def run_game():
                 if keys[pygame.K_LEFT] or keys[pygame.K_a]:
                     dx = -speed
                     facing = "left"
+                    visual_turn = "left"
                 if keys[pygame.K_RIGHT] or keys[pygame.K_d]:
                     dx = speed
                     facing = "right"
+                    visual_turn = "right"
                 if keys[pygame.K_UP] or keys[pygame.K_w]:
                     dy = -speed
                     facing = "up"
+                    visual_turn = "center"
                 if keys[pygame.K_DOWN] or keys[pygame.K_s]:
                     dy = speed
                     facing = "down"
